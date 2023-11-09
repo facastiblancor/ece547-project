@@ -1,0 +1,58 @@
+pt1 = (1 / 8, 1 + 1 / 8)
+pt2 = (L - 1 / 8, 1 + 1 / 8)
+x1 = np.linspace(pt1[0], pt2[0], 65)
+y1 = pt1[1]
+mat = np.zeros((x1.shape[0], 2))
+mat[:, 0] = x1[:]
+mat[:, 1] = y1
+np.savetxt('temp.csv', mat, delimiter=',')
+
+pt1 = (1 / 8, 1 + 1 / 8)
+pt2 = (L - 1 / 8, 1 + 1 / 8)
+x1 = np.linspace(pt1[0], pt2[0], 65)
+x1 = np.flip(x1)
+y1 = pt1[1] + 1 / 8
+mat = np.zeros((x1.shape[0], 2))
+mat[:, 0] = x1[:]
+mat[:, 1] = y1
+np.savetxt('temp.csv', mat, delimiter=',')
+
+print(np.linspace(1.125, 1.25, 4))
+
+print(np.linspace(1.25, 1.375, 4))
+
+cyc = np.genfromtxt('tractor1_trajectory.csv', delimiter=',')
+for k in range(0, cyc.shape[0]):
+    cyc[k, 1] += 1 / 4
+np.savetxt('temp.csv', cyc, delimiter=',')
+
+cyc = np.genfromtxt('temp.csv', delimiter=',')
+for k in range(0, cyc.shape[0]):
+    cyc[k, 1] += 1 / 4
+np.savetxt('temp.csv', cyc, delimiter=',')
+
+a = np.linspace(1/8, 1/16, 3)
+print(a)
+print(np.diff(a))
+
+b = np.linspace(1.75, 1.125, 13)
+print(b)
+print(np.diff(b))
+mat = np.zeros((b.shape[0], 2))
+mat[:, 0] = 0.0625
+mat[:, 1] = b[:]
+np.savetxt('temp.csv', mat, delimiter=',')
+
+# Plot the trajectory of the tractor
+traj = np.genfromtxt('tractor1_trajectory.csv', delimiter=',')
+x = np.zeros(traj.shape[0])
+y = np.zeros(traj.shape[0])
+x[:] = traj[:, 0]
+y[:] = traj[:, 1]
+plt.figure(1)
+plt.plot(x, y, 'k+-')
+plt.xlim((0, 1.75 * np.sqrt(2) + 1))
+plt.xlabel('X [mile]')
+plt.ylabel('Y [mile]')
+plt.title('Sample trajectory of the tractor')
+plt.show()
