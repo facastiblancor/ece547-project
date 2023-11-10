@@ -1,0 +1,23 @@
+r = (1 - 1/8) * 1600
+r1 = 7 / 8
+v = 13.4 / 3
+ds = 90 * v
+da = ds / r
+numSteps_4_drone = round(2 * np.pi / da)
+print(da)
+print(numSteps_4_drone)
+traj4drone = np.zeros((numSteps_4_drone, 2))
+x_offset = 0.5 + 1.75/np.sqrt(2)
+y_offset = (0.5 + 1.75 / np.sqrt(2) + 1.25 + 6 / 8 + 1) - 0.5 - 1.75/np.sqrt(2)
+for k in range(0, numSteps_4_drone):
+    traj4drone[k, 0] = r1 * np.cos(k * da) + x_offset
+    traj4drone[k, 1] = r1 * np.sin(k * da) + y_offset
+np.savetxt('drone1_trajectory.csv', traj4drone, delimiter=',')
+plt.figure(2)
+plt.plot(traj4drone[:, 0], traj4drone[:, 1], 'bx')
+ax = plt.gca()
+ax.set_aspect('equal')
+plt.xlabel('X [mile]')
+plt.ylabel('Y [mile]')
+plt.title('Sample trajectory of the scouting drone')
+plt.show()

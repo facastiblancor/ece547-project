@@ -1,7 +1,7 @@
 # ECE 547 Group Project
 
 
-class FieldSensor:
+class FieldSensor_class:
     x: float = 0
     y: float = 0
     z: float = 0
@@ -12,6 +12,9 @@ class FieldSensor:
         self.y = coord_y
         self.z = 0
         self.signalRangeRadius = 0.5
+
+    def position(self) -> tuple:
+        return self.x, self.y
 
     def dispCoordinates(self):
         print(f'[{self.x}, {self.y}, {self.z}]')
