@@ -5,19 +5,22 @@
 import itertools
 
 import numpy as np
-import matplotlib.pyplot as plt
 from AgentClass import Agent
-from Visualizer import showTrajectories, showLandscape, plotPacketArrivals, saveSimulationFrame, plotQueueLen
+from Visualizer import showTrajectories, showLandscape
+from Visualizer import plotPacketArrivals, saveSimulationFrame
+from Visualizer import plotQueueLen, plotQueueLen_saveFrame
 from PacketClass import Packet, Link
 
-EXPORT_IMAGE: bool = False
+ENABLE_ROUTING: bool = True
+EXPORT_IMAGES: bool = False
+topology_snapshot_directory: str = r'F:\Sim\S'
+queueStatus_snapshot_directory: str = r'F:\Sim1\S'
 
-numFixedAgents = 5
-numSimulationSteps = 100
+numSimulationSteps: int = 100
 
-rng1 = 2
-rng2 = 1.7
-rng3 = 1.6
+rng1 = 1.0
+rng2 = 1.0
+rng3 = 1.0
 
 # Set field size in miles
 L = 1.75 * np.sqrt(2) + 1
@@ -28,9 +31,9 @@ agents: list[Agent] = []
 
 # Introduce field sensors
 fixedAgentPositions = np.genfromtxt('fixed_agents_coord_list.csv', delimiter=',')
+numFixedAgents = fixedAgentPositions.shape[0]
 for k in range(0, numFixedAgents):
     agents.append(Agent(mobile=False, name=k, rng=rng1))
-for k in range(0, numFixedAgents):
     x1 = fixedAgentPositions[k, 0]
     y1 = fixedAgentPositions[k, 1]
     agents[k].setPosition(x1, y1)
@@ -41,7 +44,7 @@ for fix in agents:
     print(fix.position())
 
 # Introduce a tractor
-agents.append(Agent(mobile=True, name=5, rng=rng2))
+agents.append(Agent(mobile=True, name=5, rng=rng2, stepSize=5))
 agents[5].loadTrajectory('tractor1_trajectory.csv')
 
 # Introduce a scouting drone
@@ -71,17 +74,14 @@ def address2index(addr: int) -> int:
 def findDistance(agent1: Agent, agent2: Agent) -> float:
     coord1 = agent1.position()
     coord2 = agent2.position()
-    dist = np.sqrt((coord1[0] - coord2[0]) ** 2 + (coord1[0] - coord2[1]) ** 2)
+    temp1: float = (coord1[0] - coord2[0]) ** 2
+    temp2: float = (coord1[1] - coord2[1]) ** 2
+    dist: float = np.sqrt(temp1 + temp2)
     return dist
 
 
 def evaluateConnectivity(dist, r1, r2) -> bool:
-    #print(f'{dist}, {r1}, {r2}')
-    #return dist <= np.min([r1, r2])
-    if dist <= np.min([r1, r2]) + 0.3:
-        return True
-    else:
-        return False
+    return dist <= np.min([r1, r2])
 
 
 # Pre-generate packets to arrive at each agent (Poisson arrival)
@@ -94,27 +94,43 @@ for k in range(0, numAgents):
 
 plotPacketArrivals(arrivals, 3)
 
+# Runtime data and containers
+skipList = [5, 6]
 queueLen = np.zeros((numAgents, numSimulationSteps), dtype=int)
+totalNumPackets: int = 0
+numACK: int = 0
+numDroppedPackets: int = 0
+positions = np.zeros((numAgents, 2), dtype=float)
+runtime_data_rec = np.zeros((numSimulationSteps, 3), dtype=int)
+links: list[Link] = []
 
 
-def transmitPackets(tx: Agent):
+def transmitPackets(tx: Agent) -> tuple:
+    m_ack: int = 0
+    m_drp: int = 0
+    m_k = 0
     for indx in tx.sendRequestList:
         if indx < 0 or indx >= tx.queueLen:
             continue
         pkt: Packet = tx.queueingBuffer[indx]
-        rx = address2index(pkt.destinationAddr)
-        agents[rx].receivePacket(pkt.sourceAddr, pkt.destinationAddr, pkt.payloadSize)
-    tx.sendRequestList.clear()
+        rx = address2index(tx.nextStopList[m_k])
+        key = agents[rx].receivePacket(pkt.sourceAddr, pkt.destinationAddr, pkt.payloadSize)
+        if key == 1:
+            m_ack += 1
+        elif key == -1:
+            m_drp += 1
+        m_k += 1
+    tx.completeTransmission()
+    return m_ack, m_drp
 
 
 # Now the Earth begins turning
-skipList = [5, 6]
-positions = np.zeros((numAgents, 2), dtype=float)
-links: list[Link] = []
 for k in range(0, numSimulationSteps):
+    print(f'Step{k+1}', end='')
     # Move mobile agents
-    agents[5].move()
-    agents[6].move()
+    for agt in agents:
+        if agt.mobility:
+            agt.move()
     # Refresh/rebuild neighborhood list for each agent
     for m in range(0, numAgents):
         agents[m].clearPreviousNeighborhood()
@@ -136,21 +152,42 @@ for k in range(0, numSimulationSteps):
             ind = address2index(nodeAddr)
             c2 = agents[ind].position()
             links.append(Link(c1[0], c1[1], c2[0], c2[1]))
-    if EXPORT_IMAGE:
-        saveSimulationFrame(k, positions, links)
+    if EXPORT_IMAGES:
+        saveSimulationFrame(k, positions, links, topology_snapshot_directory)
     # Simulate packet arrival at each agent
     n = 0
     for agt in agents:
+        timeout = 0
+        overflow = 0
         if n not in skipList:
-            agt.collectPackets(arrivals[agt.id, k])
-        agt.dropTimeoutPackets()
+            overflow = agt.collectPackets(arrivals[n, k])
+            totalNumPackets += arrivals[n, k]
+            timeout = agt.dropTimeoutPackets()
+        numDroppedPackets += timeout
+        numDroppedPackets += overflow
         n += 1
-    # Transmit packets according to send requests
-    for agt in agents:
-        transmitPackets(agt)
-    # Record queue length history
+    if ENABLE_ROUTING:
+        # Execute routing policy
+        for agt in agents:
+            agt.route()
+            print('.', end='')
+        # Transmit packets according to send requests
+        for agt in agents:
+            temp = transmitPackets(agt)
+            numACK += temp[0]
+            numDroppedPackets += temp[1]
+            print('|', end='')
+    # Record runtime data history
     n = 0
     for agt in agents:
         queueLen[n, k] = agt.queueLen
         n += 1
+    runtime_data_rec[k, 0] = totalNumPackets
+    runtime_data_rec[k, 1] = numACK
+    runtime_data_rec[k, 2] = numDroppedPackets
+    if EXPORT_IMAGES:
+        plotQueueLen_saveFrame(queueLen, k, queueStatus_snapshot_directory)
+    print(';')
 plotQueueLen(queueLen, 4)
+np.savetxt('runtime_data.csv', runtime_data_rec, delimiter=',')
+print(f'Success: {numACK}/{totalNumPackets}.')
