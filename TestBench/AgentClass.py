@@ -13,6 +13,8 @@ class Agent:
     id: int
     address: int
     queueLen: int
+    numSentPkt: int
+    numSuccessPkt: int
     coverRangeRadius: float
     speed: float
     timeoutCriteria: int
@@ -20,6 +22,7 @@ class Agent:
     trajectory = None
     neighbors: list
     queueingBuffer: list[Packet]
+    sendRequestList: list[int]
     # NOTE: the following data members are for ambient random process ONLY
     # the agent has no access to those results in its operation
     others = None
@@ -28,18 +31,24 @@ class Agent:
         self.id = name
         self.posIndx = 0
         self.queueLen = 0
+        self.numSentPkt = 0
+        self.numSuccessPkt = 0
         self.mobility = mobile
         self.address = self.id + 1
         self.len_trajectory = 0
         self.coverRangeRadius = rng
         self.timeoutCriteria = 30
         self.neighbors = []
+        self.queueingBuffer = []
+        self.sendRequestList = []
         # Init ambient data members
-        self.others = [1, 2, 3, 4, 5, 6, 7]
+        self.others = np.array([1, 2, 3, 4, 5, 6, 7], dtype=int)
+        k = 0
         for ad in self.others:
             if ad == self.address:
-                self.others.remove(ad)
+                self.others = np.delete(self.others, k)
                 break
+            k += 1
 
     def setPosition(self, x, y):
         if self.mobility:
@@ -77,22 +86,46 @@ class Agent:
 
     def clearPreviousNeighborhood(self):
         self.neighbors.clear()
+        self.neighbors = []
 
     def addNeighbor(self, neighborAddr):
         self.neighbors.append(neighborAddr)
 
-    def collectPackets(self, numPackets):
+    def collectPackets(self, numPackets: int):
         pld_len = 30
-        random_index = round(np.random.uniform(0, 6))
-        random_addr = self.others[random_index]
+        rng = np.random.default_rng()
+        random_addr = rng.choice(self.others, size=numPackets, replace=True)
         for k in range(0, numPackets):
-            self.queueingBuffer.append(Packet(self.address, random_addr, pld_len))
+            self.queueingBuffer.append(Packet(self.address, random_addr[k], pld_len))
+        self.queueLen += numPackets
 
     def dropTimeoutPackets(self):
         indx = 0
         for pkt in self.queueingBuffer:
             if pkt.getWaitingTime() >= self.timeoutCriteria:
                 self.queueingBuffer.pop(indx)
+                self.queueLen -= 1
             else:
                 pkt.updateTime()
                 indx += 1
+
+    def fileSendRequest(self, indx):
+        self.sendRequestList.append(indx)
+
+    def sendPackets(self):
+        for indx in self.sendRequestList:
+            if indx < 0 or indx >= self.queueLen:
+                continue
+            self.queueingBuffer.pop(indx)
+            self.queueLen -= 1
+            self.numSentPkt += 1
+
+    def receivePacket(self, srcAddr, destAddr, payloadSize):
+        if destAddr == self.address:
+            self.ACK(srcAddr)
+        self.queueingBuffer.append(Packet(srcAddr, destAddr, payloadSize))
+        self.queueLen += 1
+
+    def ACK(self, senderAddr):
+        self.queueingBuffer.append(Packet(self.address, senderAddr, 4))
+        self.queueLen += 1
