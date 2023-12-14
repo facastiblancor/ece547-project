@@ -1,0 +1,20 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: ag-dtn-rl-router
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: 'Fabio '
+    family-names: Castiblanco Rubio
+    email: fcastibl@purdue.edu
+    affiliation: Purdue University
+    orcid: 'https://orcid.org/0000-0002-2269-0319'
+  - given-names: Fukai
+    family-names: Han
+    email: han823@purdue.edu
+    affiliation: Purdue University
+repository-code: 'https://github.com/facastiblancor/ece547-project'
