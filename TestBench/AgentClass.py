@@ -106,6 +106,7 @@ class Agent:
         pld_len = 30
         rng = np.random.default_rng()
         random_addr = rng.choice(self.others, size=numPackets, replace=True)
+        self.queueLen = len(self.queueingBuffer)
         for k in range(0, numPackets):
             if (self.queueLen + k + 1) > self.bufferSize:
                 overflow = numPackets - k
@@ -160,22 +161,52 @@ class Agent:
         print('*', end='')
 
     def generateRoutingTable(self):
-        for nbor in self.neighbors:
-            x = 1
+        print('to be updated...')
 
-    def route(self):
+    def BF_route(self):
         # No routing if no connection
         if len(self.neighbors) <= 0:
             return
         # Routing policy
-        for nbor in self.neighbors:
-            k = 0
-            for pkt in self.queueingBuffer:
-                # Skip packets that are already served
-                if k in self.sendRequestList:
-                    continue
+        k = 0
+        for pkt in self.queueingBuffer:
+            # Skip packets that are already served
+            if k in self.sendRequestList:
+                k += 1
+                continue
+            for nbor in self.neighbors:
                 # Send packets to a stranger node
                 if pkt.sourceAddr != nbor:
                     self.file_a_SendRequest(k, nbor)
-                k += 1
+                    break
+            k += 1
 
+    def smart_route(self):
+        # No routing if no connection
+        if len(self.neighbors) <= 0:
+            return
+        # Routing policy
+        k = 0
+        for pkt in self.queueingBuffer:
+            # Skip packets that are already served
+            if k in self.sendRequestList:
+                k += 1
+                continue
+            for nbor in self.neighbors:
+                # Direct link
+                if pkt.destinationAddr == nbor:
+                    self.file_a_SendRequest(k, nbor)
+                    break
+            k += 1
+        k = 0
+        for pkt in self.queueingBuffer:
+            # Skip packets that are already served
+            if k in self.sendRequestList:
+                k += 1
+                continue
+            for nbor in self.neighbors:
+                # Send packets to a stranger node
+                if pkt.sourceAddr != nbor:
+                    self.file_a_SendRequest(k, nbor)
+                    break
+            k += 1

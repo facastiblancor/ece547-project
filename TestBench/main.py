@@ -12,6 +12,7 @@ from Visualizer import plotQueueLen, plotQueueLen_saveFrame
 from PacketClass import Packet, Link
 
 ENABLE_ROUTING: bool = True
+ENABLE_BF_ROUTING: bool = False
 EXPORT_IMAGES: bool = False
 topology_snapshot_directory: str = r'F:\Sim\S'
 queueStatus_snapshot_directory: str = r'F:\Sim1\S'
@@ -88,14 +89,16 @@ def evaluateConnectivity(dist, r1, r2) -> bool:
 arr_rate = 1.0
 arrivals = np.zeros((numAgents, numSimulationSteps), dtype=int)
 temp = np.zeros(numSimulationSteps)
+skipList = [5, 6]
 for k in range(0, numAgents):
+    if k in skipList:
+        continue
     temp = np.random.poisson(arr_rate, numSimulationSteps)
     arrivals[k, :] = temp[:]
 
 plotPacketArrivals(arrivals, 3)
 
 # Runtime data and containers
-skipList = [5, 6]
 queueLen = np.zeros((numAgents, numSimulationSteps), dtype=int)
 totalNumPackets: int = 0
 numACK: int = 0
@@ -111,10 +114,13 @@ def transmitPackets(tx: Agent) -> tuple:
     m_k = 0
     for indx in tx.sendRequestList:
         if indx < 0 or indx >= tx.queueLen:
+            m_k += 1
             continue
-        pkt: Packet = tx.queueingBuffer[indx]
+        pkt_src: int = tx.queueingBuffer[indx].sourceAddr
+        pkt_dest: int = tx.queueingBuffer[indx].destinationAddr
+        pkt_len: int = tx.queueingBuffer[indx].payloadSize
         rx = address2index(tx.nextStopList[m_k])
-        key = agents[rx].receivePacket(pkt.sourceAddr, pkt.destinationAddr, pkt.payloadSize)
+        key = agents[rx].receivePacket(pkt_src, pkt_dest, pkt_len)
         if key == 1:
             m_ack += 1
         elif key == -1:
@@ -169,7 +175,10 @@ for k in range(0, numSimulationSteps):
     if ENABLE_ROUTING:
         # Execute routing policy
         for agt in agents:
-            agt.route()
+            if ENABLE_BF_ROUTING:
+                agt.BF_route()
+            else:
+                agt.smart_route()
             print('.', end='')
         # Transmit packets according to send requests
         for agt in agents:
